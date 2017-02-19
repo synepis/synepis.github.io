@@ -53,7 +53,7 @@ Format boot partition:
 $ mkfs.ext4 -L boot /dev/md/raid0_0p1
 ```
 
-#### 1.1 Use only 1 root partition
+### 1.1 Use only 1 root partition
 Setup LUKS encryption on (crypt)root partition:
 ```
 $ cryptsetup luksFormat /dev/md/raid0_0p2
@@ -70,12 +70,11 @@ $ mkfs.ext4 -L root /dev/mapper/root/
 ```
 
 The state of the disk should be something like this:
-In this example:
 * sdf and sde are 2 USBs
 * sda, sdb, sdc, sdd are 4 disks in RAID0 
-* md126 is a symbolic link to raid0_0
-* md126p1 is a symbolic link to raid0_0p1 which is boot
-* md126p2 is a symbolic link to raid0_0p2 which is the encrypted partition
+* md126 is sym linked from raid0_0
+* md126p1 is sym linked from raid0_0p1 which is boot
+* md126p2 is sym linked from raid0_0p2 which is the encrypted partition
 * root is the mapped/decrypted md126p2 partition
 ```
 $ lsblk
@@ -109,14 +108,14 @@ $ lsblk
 ```
 We are now ready to install the actual system.
 
-## 1.2 Use LVM for multiple partitions:
+### 1.2 Use LVM for multiple partitions:
 If you wish to setup more partition rather than just 1 root like the example above, 
 you can use LVM to accomplish that.
 
 We setup LUKS encryption on (crypt)root partition (just like above):
 ```
 $ cryptsetup luksFormat /dev/md/raid0_0p2
-$ cryptsetup open /dev/sdaX cryptroot
+$ cryptsetup open /dev/md/raid0_0p2 cryptroot
 ```
 
 Create logical volumes (root and swap partitions):
@@ -240,21 +239,30 @@ LABEL arch
     INITRD ../initramfs-linux.img
 ```
 
+**Note:If you used LVM then the APPEND line would look like this:**
+```
+APPEND cryptdevice=/dev/md/raid0_0p2:cryptroot root=/dev/mapper/vol-root rw
+```
+
 Lastly, we need to build an initram disk. Hooks need to be added in order for it (initramfs)
 to decrypt the partition and load from it.
 
 Open  `/etc/mkinipcio.conf` and add `/sbin/mdmon` to BINARIES and  `mdadm_udev` and `encrypt` to HOOKS. 
 
-*Note:* It is imporatant to add the hooks in the correct order.
+*Note:* It is important to add the hooks in the correct order.
 
 Contents of: `/etc/mkinipcio.conf`:
 ```
 ...
 BINARIES="/sbin/mdmon"
 ...
-HOOKS="base udev autodetect modconf block mdadm_udev encrypt filesystems keyboard fsck"
+HOOKS="base udev autodetect modconf `block mdadm_udev` encrypt filesystems keyboard fsck"
 ...
 ```
+
+**Note:If you used LVM then the HOOKS section needs `lvm2` as well (insert it after the `encrypt` in the HOOKS line)**
+
+
 Build the initramfs and reboot the system:
 ```
 $ mkinitcpio -p linux
